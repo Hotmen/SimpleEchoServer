@@ -1,17 +1,25 @@
 import socket
+import select
 
-sock = socket.socket()
-sock.bind(('', 9090))
-sock.listen(1)
+server = socket.socket()
+server.bind(('', 9090))
+server.listen(1)
+input = [server]
 data = ''
 while data != 'stop':
-    conn, addr = sock.accept()
-
-    print 'Connected: ', addr
-
-    while True:
-        data = conn.recv(1024)
-        if not data or data == 'stop':
-            break
-        conn.send(data.upper())
-    conn.close()
+    inputready,outputready,exceptready = select.select(input,[],[])
+    for s in inputready:
+        if s == server:
+            conn, addr = s.accept()
+            input.append(conn)
+            print 'Connected new client: ', addr
+        else:
+            data = s.recv(1024)
+            #    break
+            if data:
+                s.send('Echo: ' + data.upper())
+            else:
+                print 'Disconnected client'
+                s.close()
+                input.remove(s)
+server.close()
