@@ -7,21 +7,34 @@ def ParseArgs():
                                     epilog='In interactive mode type help to show available commands')
     parse.add_argument('--server', '-s', type=str, metavar='SERVER:PORT', default='127.0.0.1:9090',
                        help='Address of the server and port to connect (example 192.168.0.1:8080)')
-    parse.add_argument('--message', '-m', type=str,default=False,
+    parse.add_argument('--message', '-m', type=str, default=False,
                        help='Message to send to echo server', required=False)
     parse.add_argument('--file', '-f', type=str, default=False,
                        help='Path to file, that contain data to send to server', required=False)
     return parse.parse_args()
 
+
 def ClientSocket(args):
-    #socket.setdefaulttimeout(3)
     sock = socket.socket()
     address = tuple(args['server'].split(':'))
     try:
-        sock.connect((address[0],int(address[1])))
+        sock.connect((address[0], int(address[1])))
     except socket.error:
-        print ('Problem occured with connect to server {}. Check server status.'.format(address))
+        sys.stdout.write('Problem occurred with connect to server {}. Check server status.'.format(address))
         return
+
+    sys.stdout.write('Trying to connect...\n')
+    try:
+        sock.send(' ')
+        sock.settimeout(60)
+        data = sock.recv(1024)
+        sys.stdout.write('Welcome to Simple Echo server. Type help for available commands\n')
+        sys.stdout.write('Ready to receive messages\n')
+    except socket.timeout:
+            sys.stdout.write('Server is full or busy, try later!')
+            sock.close()
+            return
+
     if args['message']:
         sock.send(args['message'])
         print sock.recv(1024)
@@ -38,26 +51,28 @@ def ClientSocket(args):
             sock.close()
             return
         except:
-            print 'File reading Error! Check arguments.'
+            sys.stdout.write('File reading Error! Check arguments.\n')
             return
 
-    print 'Welcome to Simple Echo server. Type help for available commands'
     while True:
         sys.stdout.write('>>')
         send = sys.stdin.readline().strip()
         if send == 'help':
-            print 'quit : Quit from client app'
-            print 'help : Help page'
+            sys.stdout.write('quit : Quit from client app\n')
+            sys.stdout.write('help : Help page\n')
             continue
-        if not send:
+        if send == 'quit' or not send:
+            sys.stdout.write('Good by!')
+            sock.close()
             break
-        if send == 'quit':
+        if send == 'stop':
+            sock.send(send)
             sys.stdout.write('Good by!')
             sock.close()
             break
         sock.send(send)
         data = sock.recv(1024)
-        print data
+        sys.stdout.write(data+'\n')
     sock.close()
     return
 

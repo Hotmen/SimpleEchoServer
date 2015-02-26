@@ -2,20 +2,34 @@ import socket
 import threading
 import logging
 import sys
-#import multiprocessing
+import Queue
+import time
+import argparse
 logging.basicConfig(level=logging.DEBUG, format='%(name)s: %(message)s',)
 
+
+def parseargs():
+    parse = argparse.ArgumentParser(usage='server.py -p PORT -q NUMBER_OF PROCESS', description='Simple Echo server',
+                                    epilog='End of description')
+    parse.add_argument('--port', '-p', type=str, metavar='PORT', default='9090',
+                       help='Port to connection (default 9090)')
+    parse.add_argument('--queue', '-q', type=str, metavar='NUMBER', default=2,
+                       help='Number of active threads (default 2)')
+    return parse.parse_args()
+
+
 class Server:
-    def __init__(self, port):
+    def __init__(self, arg):
         self.logger = logging.getLogger('Server')
-        self.logger.debug('init')
+        self.logger.debug('Init server')
         self.host = 'localhost'
-        self.port = port
+        self.port = int(arg['port'])
         self.backlog = 1
         self.buffsize = 1024
         self.server = None
         self.threads = []
-        self.queue = []
+        self.queue = Queue.Queue()
+        self.workers = int(arg['queue'])
 
     def open_socket(self):
         try:
@@ -28,96 +42,49 @@ class Server:
             self.logger.debug('Error while open socket')
             sys.exit()
 
-    def handler(self, clientsock, addr):
-        self.logger.debug('New connection from {}'.format(addr))
-        while True:
-            try:
-                data = clientsock.recv(self.buffsize)
-                if data:
-                    self.logger.debug('Recive data - {}'.format(data))
-                    clientsock.send('Echo: ' + data.upper())
-                else:
-                    self.logger.debug('Disconnected client')
-                    clientsock.close()
-                    #thread.exit()
-                    return
-            except socket.error:
-                self.logger.debug('Error! Maybe client is disconnected')
-                return
-    def start_conn(self, sock):
-        worker = threading.Thread(target=self.server_client, args=(sock,))
-        worker.deamon = True
-        worker.start()
-
-    def server_client(self, sock):
-        clientsock, addr = sock.accept()
-        while True:
-            try:
-                data = clientsock.recv(self.buffsize)
-                if data:
-                    self.logger.debug('Recive data - {}'.format(data))
-                    clientsock.send('Echo: ' + data.upper())
-                else:
-                    self.logger.debug('Disconnected client')
-                    clientsock.close()
-                    #thread.exit()
-                    return
-            except socket.error:
-                self.logger.debug('Error! Maybe client is disconnected')
-                return
-
     def run(self):
         self.open_socket()
         self.logger.debug('Start running')
-        workers = []
-        for i in range(2):
-            workers.append(self.start_conn(self.server))
+        for i in range(self.workers):
+            cl = Client(self.queue)
+            cl.start()
         while True:
-            #self.logger.debug('Waiting for connection ....')
-            for worker in self.threads:
-                if not worker.isAlive():
-                    self.threads.remove(worker)
-                    self.threads.append(self.start_conn(self.server))
-            #cl = Client(self.server.accept())
-            #if len(self.threads) > 2:
-            #    self.logger.debug('To many connections! New client add in queue.')
-            #    self.queue.append(cl)
-            #else:
-            #cl.start()
-            #self.threads.append(cl)
-            #for th in self.threads:
-            #    if not th.isAlive():
-            #        self.threads.remove(th)
-            #        waitconn = self.queue.pop()
-            #        waitconn.start()
-            #        self.threads.append(waitconn)
-            #self.logger.debug('Number of threads {}'.format(len(self.threads)))
+            self.queue.put(self.server.accept())
+            self.logger.debug('New object added in queue')
         self.server.close()
-        for c in self.threads:
-            c.join()
+
 
 class Client(threading.Thread):
-    def __init__(self, (client, addr)):
-        self.logger = logging.getLogger('Client')
-        self.logger.debug('init')
+    def __init__(self, q):
         threading.Thread.__init__(self)
-        self.client = client
-        self.address = addr
-        self.logger.debug('New connection from {}'.format(self.address))
+        self.logger = logging.getLogger(self.name)
+        self.logger.debug('init new thread')
+        self.daemon = True
+        self.queue = q
     def run(self):
         while True:
-            try:
-                data = self.client.recv(1204)
-                if data:
-                    self.logger.debug('Reciving - {}'.format(data))
-                    self.client.send('Echo: ' + data.upper())
-                else:
-                    self.logger.debug('Disconnected')
-                    self.client.close()
-                    return
-            except socket.error:
-                return
+            client, addr = self.queue.get()
+            self.logger.debug('New connection from {}'.format(addr))
+            self.logger.debug('Processing by Thread ID - {}'.format(self.ident))
+            start = time.time()
+            while True:
+                try:
+                    data = client.recv(1204)
+                    if data:
+                        client.send('Echo: ' + data.upper())
+                    else:
+                        self.logger.debug('Disconnected {}'.format(addr))
+                        client.close()
+                        break
+                except socket.error:
+                    self.logger.debug('Disconnected {}'.format(addr))
+                    break
+
+            diff = time.time() - start
+            self.logger.debug('Task done. Working time: %.2f seconds'%(diff))
+            self.queue.task_done()
 
 if __name__ == '__main__':
-    ser = Server(9090)
+    arg = parseargs()
+    ser = Server(vars(arg))
     ser.run()
