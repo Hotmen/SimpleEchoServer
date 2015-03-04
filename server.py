@@ -61,6 +61,7 @@ class Client(threading.Thread):
         self.logger.debug('init new thread')
         self.daemon = True
         self.queue = q
+
     def run(self):
         while True:
             client, addr = self.queue.get()
@@ -81,10 +82,10 @@ class Client(threading.Thread):
                     break
 
             diff = time.time() - start
-            self.logger.debug('Task done. Working time: %.2f seconds'%(diff))
+            self.logger.debug('Task done. Working time: %.2f seconds' % diff)
             self.queue.task_done()
 
 if __name__ == '__main__':
-    arg = parseargs()
-    ser = Server(vars(arg))
+    arguments = parseargs()
+    ser = Server(vars(arguments))
     ser.run()

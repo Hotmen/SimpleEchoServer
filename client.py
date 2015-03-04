@@ -2,8 +2,9 @@ import socket
 import argparse
 import sys
 
-def ParseArgs():
-    parse = argparse.ArgumentParser(usage='clien.py -s SERVER:PORT -f FILENAME', description='Simple Echo client',
+
+def parsargs():
+    parse = argparse.ArgumentParser(usage='client.py -s SERVER:PORT -f FILENAME', description='Simple Echo client',
                                     epilog='In interactive mode type help to show available commands')
     parse.add_argument('--server', '-s', type=str, metavar='SERVER:PORT', default='127.0.0.1:9090',
                        help='Address of the server and port to connect (example 192.168.0.1:8080)')
@@ -14,7 +15,7 @@ def ParseArgs():
     return parse.parse_args()
 
 
-def ClientSocket(args):
+def clientsocket(args):
     sock = socket.socket()
     address = tuple(args['server'].split(':'))
     try:
@@ -27,7 +28,7 @@ def ClientSocket(args):
     try:
         sock.send(' ')
         sock.settimeout(60)
-        data = sock.recv(1024)
+        sock.recv(1024)
         sys.stdout.write('Welcome to Simple Echo server. Type help for available commands\n')
         sys.stdout.write('Ready to receive messages\n')
     except socket.timeout:
@@ -77,5 +78,5 @@ def ClientSocket(args):
     return
 
 if __name__ == '__main__':
-    args =  ParseArgs()
-    ClientSocket(vars(args))
+    arguments = parsargs()
+    clientsocket(vars(arguments))
